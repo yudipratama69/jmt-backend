@@ -1,0 +1,12 @@
+.git
+.gitignore
+.output
+.nuxt
+node_modules
+fun-football-admin/node_modules
+fun-football-admin/.output
+fun-football-admin/.nuxt
+dist
+tmp
+scratch
+*.log

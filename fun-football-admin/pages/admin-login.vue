@@ -10,7 +10,7 @@
       <!-- Header Logo / Judul -->
       <div class="text-center mb-6 mt-2">
         <div class="w-28 h-28 mx-auto flex items-center justify-center mb-2">
-          <img src="/logo-jmt.png" class="w-full h-full object-contain" alt="Logo JMT" />
+          <img :src="'/logo-jmt.png'" class="w-full h-full object-contain" alt="Logo JMT" />
         </div>
         <h2 class="text-2xl font-extrabold text-gray-800">Admin JMT Sport</h2>
         <p class="text-xs text-gray-400 mt-1">Masukkan password pengurus untuk masuk</p>
@@ -41,18 +41,18 @@
 <script setup>
 import { ref } from 'vue'
 
-// MEMATIKAN LAYOUT ADMIN DI HALAMAN INI
 definePageMeta({ layout: false })
 
 const password = ref('')
+const toast = useToast()
 
 const handleLogin = () => {
   if (password.value === 'admin123') {
     localStorage.setItem('admin_logged_in', 'true')
-    alert('Login Admin Berhasil!')
-    navigateTo('/')
+    toast.success('Login Admin Berhasil! Selamat datang, Pengurus.', 'Akses Diterima')
+    navigateTo('/admin')
   } else {
-    alert('Password Admin Salah!')
+    toast.error('Password Admin Salah! Silakan periksa kembali.', 'Akses Ditolak')
   }
 }
 </script>

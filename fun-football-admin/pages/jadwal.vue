@@ -1,16 +1,16 @@
 <template>
-  <div class="space-y-8 max-w-6xl mx-auto pb-10">
+  <div class="space-y-8 max-w-6xl mx-auto pb-10 transition-colors duration-300">
     
     <!-- Bagian Form (Dibuat Grid 2 Kolom agar Rapi & Tidak Ada Ruang Kosong) -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-      <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+    <div class="theme-bg-surface rounded-2xl shadow-sm border theme-border p-8 transition-colors duration-300">
+      <div class="flex justify-between items-center mb-6 border-b theme-border-subtle pb-4">
         <div>
-          <h2 class="text-xl font-bold text-gray-800">
+          <h2 class="text-xl font-bold theme-text-main">
             {{ isEditMode ? 'Edit Jadwal Main' : 'Buat Jadwal Baru' }}
           </h2>
-          <p class="text-xs text-gray-400 mt-0.5">Kelola informasi pertandingan dengan akurat.</p>
+          <p class="text-xs theme-text-muted mt-0.5">Kelola informasi pertandingan dengan akurat.</p>
         </div>
-        <button v-if="isEditMode" @click="resetForm" class="px-3 py-1.5 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-100 transition">
+        <button v-if="isEditMode" @click="resetForm" class="px-3 py-1.5 bg-red-500/10 text-red-500 rounded-xl text-xs font-bold hover:bg-red-500/20 transition">
           Batal Edit
         </button>
       </div>
@@ -20,36 +20,36 @@
         <!-- Baris 1: Nama Jadwal & Lokasi (2 Kolom) -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Nama Jadwal</label>
-            <input v-model="form.title" type="text" placeholder="Misal: Fun Football Pagi" class="w-full border border-gray-200 rounded-xl p-3.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm text-gray-800 bg-gray-50/50" required>
+            <label class="block text-xs font-bold uppercase tracking-wider theme-text-muted mb-2">Nama Jadwal</label>
+            <input v-model="form.title" type="text" placeholder="Misal: Fun Football Pagi" class="w-full border theme-border rounded-xl p-3.5 focus:border-orange-500 outline-none text-sm theme-text-main theme-bg-card placeholder-slate-400 font-medium" required>
           </div>
           <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Lokasi Lapangan</label>
-            <input v-model="form.location" type="text" placeholder="Misal: Stadion Gelora" class="w-full border border-gray-200 rounded-xl p-3.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm text-gray-800 bg-gray-50/50" required>
+            <label class="block text-xs font-bold uppercase tracking-wider theme-text-muted mb-2">Lokasi Lapangan</label>
+            <input v-model="form.location" type="text" placeholder="Misal: Stadion Gelora" class="w-full border theme-border rounded-xl p-3.5 focus:border-orange-500 outline-none text-sm theme-text-main theme-bg-card placeholder-slate-400 font-medium" required>
           </div>
         </div>
 
         <!-- Baris 2: Tanggal Main & Batas Waktu Bayar (2 Kolom) -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Tanggal & Jam Main</label>
-            <input v-model="form.match_date" type="datetime-local" class="w-full border border-gray-200 rounded-xl p-3.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm text-gray-800 bg-gray-50/50" required>
+            <label class="block text-xs font-bold uppercase tracking-wider theme-text-muted mb-2">Tanggal & Jam Main</label>
+            <input v-model="form.match_date" type="datetime-local" class="w-full border theme-border rounded-xl p-3.5 focus:border-orange-500 outline-none text-sm theme-text-main theme-bg-card font-medium" required>
           </div>
           <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Batas Waktu Bayar</label>
-            <input v-model="form.payment_deadline" type="datetime-local" class="w-full border border-gray-200 rounded-xl p-3.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm text-gray-800 bg-gray-50/50" required>
+            <label class="block text-xs font-bold uppercase tracking-wider theme-text-muted mb-2">Batas Waktu Bayar</label>
+            <input v-model="form.payment_deadline" type="datetime-local" class="w-full border theme-border rounded-xl p-3.5 focus:border-orange-500 outline-none text-sm theme-text-main theme-bg-card font-medium" required>
           </div>
         </div>
 
         <!-- Baris 3: Kuota Maksimal & Harga Patungan (2 Kolom) -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Kuota Maksimal (Orang)</label>
-            <input v-model="form.quota_max" type="number" class="w-full border border-gray-200 rounded-xl p-3.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm text-gray-800 bg-gray-50/50" required>
+            <label class="block text-xs font-bold uppercase tracking-wider theme-text-muted mb-2">Kuota Maksimal (Orang)</label>
+            <input v-model="form.quota_max" type="number" class="w-full border theme-border rounded-xl p-3.5 focus:border-orange-500 outline-none text-sm theme-text-main theme-bg-card font-medium" required>
           </div>
           <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Harga Patungan (Rp)</label>
-            <input v-model="form.price_per_person" type="number" class="w-full border border-gray-200 rounded-xl p-3.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm text-gray-800 bg-gray-50/50" required>
+            <label class="block text-xs font-bold uppercase tracking-wider theme-text-muted mb-2">Harga Patungan (Rp)</label>
+            <input v-model="form.price_per_person" type="number" class="w-full border theme-border rounded-xl p-3.5 focus:border-orange-500 outline-none text-sm theme-text-main theme-bg-card font-medium" required>
           </div>
         </div>
 
@@ -63,38 +63,38 @@
     </div>
 
     <!-- Bagian Tabel Daftar Seluruh Jadwal -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      <div class="p-5 border-b border-gray-100 bg-gray-50/50">
-        <h3 class="font-bold text-gray-700 text-base">Daftar Seluruh Jadwal</h3>
+    <div class="theme-bg-surface rounded-2xl shadow-sm border theme-border overflow-hidden transition-colors duration-300">
+      <div class="p-5 border-b theme-border theme-bg-card">
+        <h3 class="font-bold theme-text-main text-base">Daftar Seluruh Jadwal</h3>
       </div>
       
       <table class="w-full text-left border-collapse">
         <thead>
-          <tr class="bg-gray-50 text-gray-400 text-xs uppercase tracking-wider">
-            <th class="p-4 font-bold border-b border-gray-100">Nama Jadwal</th>
-            <th class="p-4 font-bold border-b border-gray-100">Tanggal</th>
-            <th class="p-4 font-bold border-b border-gray-100">Lokasi</th>
-            <th class="p-4 font-bold border-b border-gray-100">Harga</th>
-            <th class="p-4 font-bold border-b border-gray-100 text-center">Aksi Koreksi</th>
+          <tr class="theme-bg-card theme-text-muted text-xs uppercase tracking-wider">
+            <th class="p-4 font-bold border-b theme-border">Nama Jadwal</th>
+            <th class="p-4 font-bold border-b theme-border">Tanggal</th>
+            <th class="p-4 font-bold border-b theme-border">Lokasi</th>
+            <th class="p-4 font-bold border-b theme-border">Harga</th>
+            <th class="p-4 font-bold border-b theme-border text-center">Aksi Koreksi</th>
           </tr>
         </thead>
         <tbody class="text-sm">
-          <tr v-for="event in eventsData?.data" :key="event.id" class="border-b border-gray-50 hover:bg-gray-50/80 transition">
-            <td class="p-4 text-gray-800 font-bold">{{ event.title }}</td>
-            <td class="p-4 text-gray-600">{{ new Date(event.match_date).toLocaleDateString('id-ID') }}</td>
-            <td class="p-4 text-gray-600">{{ event.location }}</td>
-            <td class="p-4 text-gray-600 font-semibold">Rp {{ event.price_per_person.toLocaleString('id-ID') }}</td>
+          <tr v-for="event in eventsData?.data" :key="event.id" class="border-b theme-border-subtle hover:bg-orange-500/5 transition">
+            <td class="p-4 theme-text-main font-bold">{{ event.title }}</td>
+            <td class="p-4 theme-text-muted">{{ new Date(event.match_date).toLocaleDateString('id-ID') }}</td>
+            <td class="p-4 theme-text-muted">{{ event.location }}</td>
+            <td class="p-4 theme-text-main font-semibold">Rp {{ (event.price_per_person || 0).toLocaleString('id-ID') }}</td>
             <td class="p-4 text-center space-x-2">
-              <button @click="pilihEdit(event)" class="px-3 py-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 rounded-lg text-xs font-bold transition">
+              <button @click="pilihEdit(event)" class="px-3 py-1.5 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 rounded-lg text-xs font-bold transition">
                 Edit
               </button>
-              <button @click="hapusJadwal(event.id)" class="px-3 py-1.5 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg text-xs font-bold transition">
+              <button @click="hapusJadwal(event.id)" class="px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg text-xs font-bold transition">
                 Hapus
               </button>
             </td>
           </tr>
           <tr v-if="!eventsData?.data || eventsData.data.length === 0">
-            <td colspan="5" class="p-8 text-center text-gray-400 text-sm">Belum ada jadwal yang terdaftar.</td>
+            <td colspan="5" class="p-8 text-center theme-text-muted text-sm">Belum ada jadwal yang terdaftar.</td>
           </tr>
         </tbody>
       </table>
@@ -106,7 +106,16 @@
 <script setup>
 import { ref } from 'vue'
 
-const { data: eventsData, refresh } = await useFetch('http://localhost:8080/events')
+const { $api } = useNuxtApp()
+const { useAutoRefresh } = useRealtime()
+const toast = useToast()
+
+const { data: eventsData, refresh } = await useApiFetch('/events')
+
+// Pasang Auto-Refresh Realtime
+useAutoRefresh(['EVENT_UPDATED', 'REGISTRATION_UPDATED'], () => {
+  refresh()
+})
 
 const isEditMode = ref(false)
 const selectedEventId = ref(null)
@@ -165,37 +174,43 @@ const submitForm = async () => {
     }
 
     if (isEditMode.value) {
-      await $fetch(`http://localhost:8080/events/${selectedEventId.value}`, {
+      await $api(`/events/${selectedEventId.value}`, {
         method: 'PUT',
         body: payload
       })
-      alert('Jadwal berhasil diperbarui!')
+      toast.success('Jadwal pertandingan berhasil diperbarui!', 'Sukses Update')
     } else {
-      await $fetch('http://localhost:8080/events', {
+      await $api('/events', {
         method: 'POST',
         body: payload
       })
-      alert('Jadwal baru berhasil dipublikasikan!')
+      toast.success('Jadwal baru berhasil dipublikasikan!', 'Jadwal Rilis')
     }
 
     resetForm()
     refresh()
   } catch (error) {
-    alert('Terjadi kesalahan saat menyimpan data.')
+    toast.error('Terjadi kesalahan saat menyimpan data.', 'Error')
   }
 }
 
-const hapusJadwal = async (id) => {
-  if (confirm('Apakah Anda yakin ingin menghapus jadwal ini?')) {
-    try {
-      await $fetch(`http://localhost:8080/events/${id}`, {
-        method: 'DELETE'
-      })
-      alert('Jadwal berhasil dihapus!')
-      refresh()
-    } catch (error) {
-      alert('Gagal menghapus jadwal.')
+const hapusJadwal = (id) => {
+  toast.confirm({
+    title: 'Hapus Jadwal',
+    message: 'Apakah Anda yakin ingin menghapus jadwal pertandingan ini? Data polling yang terkait akan dibersihkan.',
+    confirmText: 'Ya, Hapus',
+    cancelText: 'Batal',
+    onConfirm: async () => {
+      try {
+        await $api(`/events/${id}`, {
+          method: 'DELETE'
+        })
+        toast.success('Jadwal pertandingan berhasil dihapus!', 'Terhapus')
+        refresh()
+      } catch (error) {
+        toast.error('Gagal menghapus jadwal.', 'Error')
+      }
     }
-  }
+  })
 }
 </script>

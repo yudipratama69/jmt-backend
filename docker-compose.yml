@@ -1,0 +1,54 @@
+services:
+  # ----------------------------------------------------
+  # 1. Database MongoDB (Otomatis & Persisten)
+  # ----------------------------------------------------
+  mongo:
+    image: mongo:6.0
+    container_name: jmt_mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_DATABASE: fun_football_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - jmt_mongo_data:/data/db
+    networks:
+      - jmt_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------
+  # 2. JMT Sport Fullstack App (Go API + WebSocket + Nuxt PWA)
+  # ----------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jmt_sport_app
+    restart: always
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017}
+      DB_NAME: ${DB_NAME:-fun_football_db}
+      GIN_MODE: "release"
+    ports:
+      - "7777:8080"
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - jmt_network
+
+volumes:
+  jmt_mongo_data:
+    name: jmt_mongo_data
+
+networks:
+  jmt_network:
+    name: jmt_network
+    driver: bridge

@@ -1,50 +1,90 @@
 <template>
-  <div class="p-5 space-y-6">
+  <div class="p-4 space-y-6">
     
     <!-- Tombol Kembali & Judul -->
-    <div class="flex items-center gap-3 mb-6">
-      <button @click="navigateTo('/player')" class="p-2 bg-gray-100 rounded-full text-gray-600 hover:bg-gray-200 transition active:scale-95">
+    <div class="flex items-center gap-3">
+      <button @click="navigateTo('/player')" class="p-2.5 theme-bg-surface rounded-full theme-text-muted hover:theme-text-main transition active:scale-95 border theme-border">
         <Icon name="ph:arrow-left-bold" class="text-xl" />
       </button>
-      <h2 class="text-xl font-bold text-gray-800">Pengaturan Profile</h2>
+      <div>
+        <h2 class="text-xl font-black theme-text-main tracking-wide">Pengaturan Profil</h2>
+        <p class="text-xs theme-text-muted">Atur avatar dan nama panggilan lapanganmu.</p>
+      </div>
     </div>
 
-    <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 text-center">
+    <!-- Profil Card Box -->
+    <div class="theme-bg-card backdrop-blur-md rounded-3xl p-6 border theme-border shadow-xl text-center transition-colors duration-300">
       
-      <!-- AREA FOTO PROFILE (YANG DIPERBAIKI) -->
-      <div class="relative w-28 h-28 mx-auto mb-4">
+      <!-- Area Foto Profil Bulat Sporty -->
+      <div class="relative w-32 h-32 mx-auto mb-4">
         
         <!-- Preview Foto Bulat -->
-        <img v-if="previewImage" :src="previewImage" class="w-full h-full object-cover rounded-full border-4 border-emerald-50 shadow-md" />
-        <div v-else class="w-full h-full bg-emerald-100 rounded-full flex items-center justify-center border-4 border-emerald-50 shadow-md">
-          <Icon name="ph:user-bold" class="text-5xl text-emerald-500" />
+        <img v-if="previewImage" :src="previewImage" class="w-full h-full object-cover rounded-full border-4 border-orange-500/40 shadow-xl" />
+        <div v-else class="w-full h-full theme-bg-surface rounded-full flex items-center justify-center border-4 theme-border shadow-xl">
+          <Icon name="ph:user-bold" class="text-6xl theme-text-muted" />
         </div>
         
-        <!-- Tombol Kamera (Dibuat bulat sempurna dan input disembunyikan) -->
-        <label class="absolute bottom-0 right-0 bg-emerald-600 text-white w-10 h-10 flex items-center justify-center rounded-full cursor-pointer shadow-lg hover:bg-emerald-700 transition active:scale-95">
+        <!-- Tombol Kamera Bulat -->
+        <label class="absolute bottom-1 right-1 bg-gradient-to-r from-red-600 to-orange-500 text-white w-10 h-10 flex items-center justify-center rounded-full cursor-pointer shadow-lg hover:brightness-110 transition active:scale-95 border-2 border-white">
           <Icon name="ph:camera-plus-bold" class="text-xl" />
-          <!-- style="display: none;" akan memaksa teks 'Choose File' hilang -->
           <input type="file" @change="handleFileChange" accept="image/*" style="display: none;" />
         </label>
 
       </div>
 
-      <p class="text-xs text-gray-400 mb-6">Klik ikon kamera untuk mengubah foto</p>
+      <p class="text-xs theme-text-muted mb-6">Sentuh ikon kamera untuk mengganti foto profil</p>
 
       <!-- Form Edit Nama -->
       <form @submit.prevent="simpanProfile" class="space-y-4 text-left">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Nama Panggilan</label>
-          <input v-model="formName" type="text" class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none" required />
+          <label class="block text-xs font-black uppercase tracking-wider theme-text-muted mb-1.5">Nama Panggilan di Lapangan</label>
+          <input 
+            v-model="formName" 
+            type="text" 
+            class="w-full border theme-border rounded-2xl p-3.5 theme-bg-surface text-sm theme-text-main placeholder-slate-400 outline-none focus:border-orange-500 font-bold transition" 
+            required />
         </div>
 
-        <button type="submit" class="w-full bg-gray-900 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl active:scale-95 transition mt-4 flex items-center justify-center gap-2">
-          <Icon name="ph:floppy-disk-back-bold" class="text-lg" />
-          Simpan Perubahan
+        <button 
+          type="submit" 
+          :disabled="isSaving"
+          class="w-full bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 hover:from-red-700 hover:to-orange-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-orange-600/30 transition active:scale-95 text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+          <Icon v-if="isSaving" name="ph:spinner-gap-bold" class="text-lg animate-spin" />
+          <Icon v-else name="ph:floppy-disk-back-bold" class="text-lg" />
+          <span>{{ isSaving ? 'Menyimpan...' : 'Simpan Perubahan' }}</span>
         </button>
       </form>
 
     </div>
+
+    <!-- Card Pasang PWA (Hanya jika belum diinstall) -->
+    <div v-if="!isInstalled" class="theme-bg-card backdrop-blur-md rounded-3xl p-5 border theme-border shadow-xl flex items-center justify-between transition-colors duration-300">
+      <div class="flex items-center gap-3.5">
+        <div class="w-12 h-12 rounded-2xl bg-orange-500/20 border border-orange-500/30 text-orange-500 flex items-center justify-center shrink-0">
+          <Icon name="ph:device-mobile-bold" class="text-2xl" />
+        </div>
+        <div>
+          <h4 class="text-sm font-black theme-text-main">Aplikasi HP (PWA)</h4>
+          <p class="text-[11px] theme-text-muted">Pasang di layar utama HP untuk akses cepat</p>
+        </div>
+      </div>
+      <button 
+        @click="triggerInstall" 
+        class="px-4 py-2.5 bg-gradient-to-r from-orange-500 to-red-600 text-white text-xs font-black rounded-xl shadow-md transition active:scale-95 flex items-center gap-1.5 shrink-0">
+        <Icon name="ph:download-simple-bold" class="text-base" />
+        Pasang
+      </button>
+    </div>
+
+    <!-- Modal Panduan Install PWA -->
+    <PwaInstallModal 
+      :show="showPwaModal" 
+      :is-i-o-s="isIOS" 
+      :has-prompt="hasPrompt"
+      @close="closeModal" 
+      @install="triggerInstall" 
+    />
+
   </div>
 </template>
 
@@ -53,38 +93,42 @@ import { ref, onMounted } from 'vue'
 
 definePageMeta({ layout: 'mobile' })
 
+const { $api } = useNuxtApp()
+const { isInstalled, isIOS, hasPrompt, showModal: showPwaModal, triggerInstall, closeModal } = usePwaInstall()
+
 const userId = ref('')
 const formName = ref('')
 const selectedFile = ref(null)
 const previewImage = ref(null)
+const isSaving = ref(false)
 
-// Tarik data user saat ini saat halaman dimuat
 onMounted(async () => {
   userId.value = localStorage.getItem('user_id')
   if (!userId.value) return navigateTo('/player/login')
 
   try {
-    const res = await $fetch(`http://localhost:8080/user?id=${userId.value}`)
+    const res = await $api(`/user?id=${userId.value}`)
     formName.value = res.data.name
     if (res.data.profile_pic) {
-      previewImage.value = `http://localhost:8080${res.data.profile_pic}`
+      previewImage.value = useApiUrl(res.data.profile_pic)
     }
   } catch (error) {
     console.error("Gagal memuat profil")
   }
 })
 
-// Fungsi untuk menangani pilihan gambar dan membuat preview
 const handleFileChange = (event) => {
   const file = event.target.files[0]
   if (file) {
     selectedFile.value = file
-    previewImage.value = URL.createObjectURL(file) // Buat URL lokal untuk preview cepat
+    previewImage.value = URL.createObjectURL(file)
   }
 }
 
-// Fungsi Simpan Profile ke Backend
+const toast = useToast()
+
 const simpanProfile = async () => {
+  isSaving.value = true
   try {
     const formData = new FormData()
     formData.append('user_id', userId.value)
@@ -93,18 +137,22 @@ const simpanProfile = async () => {
       formData.append('profile_pic', selectedFile.value)
     }
 
-    const res = await $fetch('http://localhost:8080/update-profile', {
-      method: 'PUT',
+    const res = await $api('/update-profile', {
+      method: 'POST',
       body: formData
     })
 
-    // Update nama di Local Storage agar sapaan di beranda ikut berubah
-    localStorage.setItem('user_name', res.new_name)
-    alert('Mantap! Profil berhasil diperbarui.')
-    navigateTo('/player') // Kembali ke beranda
-    
+    if (res.new_name) localStorage.setItem('user_name', res.new_name)
+    if (res.new_profile_pic) previewImage.value = useApiUrl(res.new_profile_pic)
+
+    toast.success('Profil pemain Anda berhasil diperbarui!', 'Sukses Simpan')
+    setTimeout(() => {
+      navigateTo('/player')
+    }, 800)
   } catch (error) {
-    alert('Gagal memperbarui profil.')
+    toast.error('Gagal memperbarui profil.', 'Error')
+  } finally {
+    isSaving.value = false
   }
 }
 </script>

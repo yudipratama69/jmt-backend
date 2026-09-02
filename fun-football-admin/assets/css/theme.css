@@ -1,0 +1,116 @@
+/* ==========================================================================
+   JMT SPORT DESIGN SYSTEM & THEME VARIABLES (CSS-BASED)
+   Kelola & sesuaikan seluruh tema warna Gelap/Terang di sini!
+   ========================================================================== */
+
+:root,
+html.dark {
+  --bg-page: #020617;        /* Latar belakang luar aplikasi (Deep Slate 950) */
+  --bg-surface: #0f172a;     /* Latar kontainer mobile utama (Slate 900) */
+  --bg-card: rgba(30, 41, 59, 0.75); /* Latar item kartu jadwal / info */
+  --bg-card-solid: #1e293b;  /* Latar solid untuk popup/modal */
+  --bg-input: #0b1120;       /* Latar input form */
+  --bg-dock: rgba(15, 23, 42, 0.92); /* Latar bottom navigation bar */
+  
+  --border-color: rgba(51, 65, 85, 0.7);  /* Garis border standar */
+  --border-subtle: rgba(51, 65, 85, 0.4); /* Garis pemisah tipis */
+  --border-focus: #f97316;
+  
+  --text-main: #f8fafc;       /* Teks judul & teks utama (Putih Terang) */
+  --text-muted: #94a3b8;      /* Teks sekunder (Abu-abu terang) */
+  --text-dim: #64748b;        /* Teks redup */
+  
+  --accent-flame: #ea580c;
+  --accent-red: #dc2626;
+  --accent-gold: #f59e0b;
+  --accent-emerald: #10b981;
+  
+  --card-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+  --modal-bg: #0f172a;
+}
+
+html.light {
+  --bg-page: #f1f5f9;        /* Latar belakang luar aplikasi (Slate 100) */
+  --bg-surface: #ffffff;     /* Latar kontainer mobile utama (Putih Bersih) */
+  --bg-card: #f8fafc;        /* Latar item kartu jadwal / info */
+  --bg-card-solid: #ffffff;  /* Latar solid untuk popup/modal */
+  --bg-input: #f8fafc;       /* Latar input form */
+  --bg-dock: rgba(255, 255, 255, 0.94); /* Latar bottom navigation bar */
+  
+  --border-color: #e2e8f0;    /* Garis border standar */
+  --border-subtle: #cbd5e1;   /* Garis pemisah tipis */
+  --border-focus: #ea580c;
+  
+  --text-main: #0f172a;       /* Teks judul & teks utama (Hitam Slate) */
+  --text-muted: #475569;      /* Teks sekunder (Abu-abu) */
+  --text-dim: #94a3b8;        /* Teks redup */
+  
+  --accent-flame: #ea580c;
+  --accent-red: #dc2626;
+  --accent-gold: #d97706;
+  --accent-emerald: #059669;
+  
+  --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+  --modal-bg: #ffffff;
+}
+
+/* Utilitas Kelas CSS untuk dipanggil di template & komponen */
+.theme-bg-page { background-color: var(--bg-page); }
+.theme-bg-surface { background-color: var(--bg-surface); }
+.theme-bg-card { background-color: var(--bg-card); }
+.theme-bg-card-solid { background-color: var(--bg-card-solid); }
+.theme-bg-input { background-color: var(--bg-input); }
+.theme-bg-dock { background-color: var(--bg-dock); }
+
+.theme-text-main { color: var(--text-main); }
+.theme-text-muted { color: var(--text-muted); }
+.theme-text-dim { color: var(--text-dim); }
+
+.theme-border { border-color: var(--border-color); }
+.theme-border-subtle { border-color: var(--border-subtle); }
+.theme-shadow { box-shadow: var(--card-shadow); }
+
+/* Mobile Viewport & Safe-Area Insets for All Smartphone Screens (iOS & Android) */
+:root {
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+.mobile-app-container {
+  height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.mobile-content-area {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 1rem));
+}
+
+.mobile-bottom-dock {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 28rem; /* max-w-md equivalent */
+  z-index: 40;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0.75rem));
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+}
+
+/* Smooth custom scrollbars */
+.mobile-content-area::-webkit-scrollbar {
+  width: 4px;
+}
+.mobile-content-area::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 9999px;
+}

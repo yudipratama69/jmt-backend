@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
-	"strconv"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -25,14 +28,13 @@ var DB *mongo.Database
 // --- MODEL DATA ---
 
 type User struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Name      string             `bson:"name" json:"name"`
-	Email     string             `bson:"email" json:"email"`
-	Password  string             `bson:"password" json:"-"` // Sembunyikan password di respons JSON
+	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Name       string             `bson:"name" json:"name"`
+	Email      string             `bson:"email" json:"email"`
+	Password   string             `bson:"password" json:"-"`                        // Sembunyikan password di respons JSON
 	ProfilePic string             `bson:"profile_pic,omitempty" json:"profile_pic"` // Tambahkan baris ini
 	Deposit    int                `bson:"deposit" json:"deposit"`
-	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
-
+	CreatedAt  time.Time          `bson:"created_at" json:"created_at"`
 }
 
 type Event struct {
@@ -59,16 +61,30 @@ type Registration struct {
 	RegisteredAt    time.Time          `bson:"registered_at" json:"registered_at"`
 }
 
+type Notification struct {
+	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Title     string             `bson:"title" json:"title"`
+	Message   string             `bson:"message" json:"message"`
+	Type      string             `bson:"type" json:"type"` // INFO, JADWAL, URGENT, PROMO
+	Sender    string             `bson:"sender" json:"sender"`
+	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
+}
+
 // --- FUNGSI KONEKSI ---
 
 func ConnectDB() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	// Coba load file .env jika tersedia (tidak wajib jika variabel di-pass dari Docker)
+	_ = godotenv.Load()
 
 	mongoURI := os.Getenv("MONGO_URI")
+	if mongoURI == "" {
+		mongoURI = "mongodb://localhost:27017"
+	}
+
 	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		dbName = "fun_football_db"
+	}
 
 	clientOptions := options.Client().ApplyURI(mongoURI)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -76,11 +92,11 @@ func ConnectDB() {
 
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Gagal koneksi ke MongoDB: ", err)
 	}
 
 	DB = client.Database(dbName)
-	fmt.Println("🚀 Berhasil terhubung ke database:", dbName)
+	fmt.Println("🚀 Berhasil terhubung ke database:", dbName, "pada", mongoURI)
 }
 
 // --- HANDLER API AUTENTIKASI ---
@@ -179,29 +195,78 @@ func CreateEvent(c *gin.Context) {
 	defer cancel()
 	result, err := DB.Collection("events").InsertOne(ctx, newEvent)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan data"})
+		fmt.Println("❌ ERROR MONGODB:", err)                                // <-- Tambahkan baris ini untuk mencetak error
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}) // <-- Tampilkan error asli ke frontend sementara
 		return
 	}
 	newEvent.ID = result.InsertedID.(primitive.ObjectID)
+	BroadcastEvent("EVENT_UPDATED", newEvent)
 	c.JSON(http.StatusCreated, gin.H{"message": "Jadwal berhasil dibuat!", "data": newEvent})
 }
 
+type EventDetail struct {
+	ID              primitive.ObjectID `json:"id"`
+	Title           string             `json:"title"`
+	Location        string             `json:"location"`
+	MatchDate       time.Time          `json:"match_date"`
+	QuotaMax        int                `json:"quota_max"`
+	PricePerPerson  int                `json:"price_per_person"`
+	PaymentDeadline time.Time          `json:"payment_deadline"`
+	Status          string             `json:"status"`
+	CreatedAt       time.Time          `json:"created_at"`
+	RegisteredCount int                `json:"registered_count"`
+	PaidCount       int                `json:"paid_count"`
+	SlotsLeft       int                `json:"slots_left"`
+}
+
 func GetEvents(c *gin.Context) {
-	var events []Event
+	var results []EventDetail
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cursor, err := DB.Collection("events").Find(ctx, bson.M{})
+
+	opts := options.Find().SetSort(bson.D{{Key: "match_date", Value: 1}})
+	cursor, err := DB.Collection("events").Find(ctx, bson.M{}, opts)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data"})
 		return
 	}
 	defer cursor.Close(ctx)
+
 	for cursor.Next(ctx) {
 		var event Event
 		cursor.Decode(&event)
-		events = append(events, event)
+
+		regCount, _ := DB.Collection("registrations").CountDocuments(ctx, bson.M{
+			"event_id":       event.ID,
+			"polling_status": "JOIN",
+		})
+
+		paidCount, _ := DB.Collection("registrations").CountDocuments(ctx, bson.M{
+			"event_id":       event.ID,
+			"payment_status": "PAID",
+		})
+
+		slotsLeft := event.QuotaMax - int(regCount)
+		if slotsLeft < 0 {
+			slotsLeft = 0
+		}
+
+		results = append(results, EventDetail{
+			ID:              event.ID,
+			Title:           event.Title,
+			Location:        event.Location,
+			MatchDate:       event.MatchDate,
+			QuotaMax:        event.QuotaMax,
+			PricePerPerson:  event.PricePerPerson,
+			PaymentDeadline: event.PaymentDeadline,
+			Status:          event.Status,
+			CreatedAt:       event.CreatedAt,
+			RegisteredCount: int(regCount),
+			PaidCount:       int(paidCount),
+			SlotsLeft:       slotsLeft,
+		})
 	}
-	c.JSON(http.StatusOK, gin.H{"data": events})
+	c.JSON(http.StatusOK, gin.H{"data": results})
 }
 
 func RegisterEvent(c *gin.Context) {
@@ -213,7 +278,7 @@ func RegisterEvent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data salah"})
 		return
 	}
-	
+
 	eventObjID, _ := primitive.ObjectIDFromHex(req.EventID)
 	userObjID, _ := primitive.ObjectIDFromHex(req.UserID)
 
@@ -271,6 +336,7 @@ func RegisterEvent(c *gin.Context) {
 		return
 	}
 	newReg.ID = res.InsertedID.(primitive.ObjectID)
+	BroadcastEvent("REGISTRATION_UPDATED", newReg)
 	c.JSON(http.StatusCreated, gin.H{"message": "Pendaftaran berhasil dicatat", "status_kuota": pollingStatus, "data": newReg})
 }
 
@@ -306,6 +372,7 @@ func UploadPaymentProof(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update database"})
 		return
 	}
+	BroadcastEvent("PAYMENT_UPDATED", gin.H{"registration_id": regID, "url": "/" + uploadPath})
 	c.JSON(http.StatusOK, gin.H{"message": "Bukti berhasil diunggah", "url": "/" + uploadPath})
 }
 
@@ -360,9 +427,9 @@ func VerifyPayment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update status"})
 		return
 	}
+	BroadcastEvent("PAYMENT_UPDATED", gin.H{"registration_id": req.RegistrationID, "status": newPaymentStatus})
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Berhasil di-%s", req.Action), "status_baru": newPaymentStatus})
 }
-
 
 func GetMyRegistrations(c *gin.Context) {
 	userID := c.Query("user_id")
@@ -394,11 +461,11 @@ func GetMyRegistrations(c *gin.Context) {
 func GetUser(c *gin.Context) {
 	id := c.Query("id")
 	objID, _ := primitive.ObjectIDFromHex(id)
-	
+
 	var user User
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	err := DB.Collection("users").FindOne(ctx, bson.M{"_id": objID}).Decode(&user)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User tidak ditemukan"})
@@ -408,9 +475,10 @@ func GetUser(c *gin.Context) {
 }
 
 func UpdateProfile(c *gin.Context) {
+	_ = c.Request.ParseMultipartForm(32 << 20)
 	userID := c.PostForm("user_id")
 	newName := c.PostForm("name")
-	
+
 	if userID == "" || newName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak lengkap"})
 		return
@@ -419,13 +487,23 @@ func UpdateProfile(c *gin.Context) {
 	objID, _ := primitive.ObjectIDFromHex(userID)
 	updateData := bson.M{"name": newName}
 
+	var photoURL string
 	// Cek apakah ada file foto yang diunggah
 	file, err := c.FormFile("profile_pic")
-	if err == nil { // Jika ada file foto
-		filename := fmt.Sprintf("avatar-%d-%s", time.Now().Unix(), filepath.Base(file.Filename))
+	if err == nil && file != nil {
+		os.MkdirAll("uploads", os.ModePerm)
+		ext := filepath.Ext(file.Filename)
+		if ext == "" {
+			ext = ".jpg"
+		}
+		filename := fmt.Sprintf("avatar-%d%s", time.Now().UnixNano(), ext)
 		uploadPath := fmt.Sprintf("uploads/%s", filename)
-		c.SaveUploadedFile(file, uploadPath)
-		updateData["profile_pic"] = "/" + uploadPath
+		if err := c.SaveUploadedFile(file, uploadPath); err != nil {
+			log.Println("Gagal menyimpan file avatar:", err)
+		} else {
+			photoURL = "/" + uploadPath
+			updateData["profile_pic"] = photoURL
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -437,7 +515,8 @@ func UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Profile berhasil diperbarui", "new_name": newName})
+	BroadcastEvent("USER_UPDATED", gin.H{"user_id": userID, "new_name": newName, "profile_pic": photoURL})
+	c.JSON(http.StatusOK, gin.H{"message": "Profile berhasil diperbarui", "new_name": newName, "profile_pic": photoURL})
 }
 
 func GetFinancialSummary(c *gin.Context) {
@@ -468,7 +547,7 @@ func GetFinancialSummary(c *gin.Context) {
 		// Cari informasi event terkait untuk mendapatkan harga patungan
 		var event Event
 		errEvt := DB.Collection("events").FindOne(ctx, bson.M{"_id": reg.EventID}).Decode(&event)
-		
+
 		if errEvt == nil {
 			totalKas += event.PricePerPerson // Akumulasi total kas komunitas
 
@@ -484,8 +563,8 @@ func GetFinancialSummary(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"total_kas":          totalKas,
-		"my_contributions":   userContributions,
+		"total_kas":        totalKas,
+		"my_contributions": userContributions,
 	})
 }
 
@@ -524,13 +603,13 @@ func UpdateEvent(c *gin.Context) {
 	}
 
 	updateData := bson.M{
-		"title":             input.Title,
-		"location":          input.Location,
-		"match_date":        input.MatchDate,
-		"quota_max":         input.QuotaMax,
-		"price_per_person":  input.PricePerPerson,
-		"payment_deadline":  input.PaymentDeadline,
-		"status":            input.Status,
+		"title":            input.Title,
+		"location":         input.Location,
+		"match_date":       input.MatchDate,
+		"quota_max":        input.QuotaMax,
+		"price_per_person": input.PricePerPerson,
+		"payment_deadline": input.PaymentDeadline,
+		"status":           input.Status,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -542,6 +621,7 @@ func UpdateEvent(c *gin.Context) {
 		return
 	}
 
+	BroadcastEvent("EVENT_UPDATED", gin.H{"id": id, "action": "update"})
 	c.JSON(http.StatusOK, gin.H{"message": "Jadwal berhasil diperbarui"})
 }
 
@@ -562,6 +642,7 @@ func DeleteEvent(c *gin.Context) {
 		return
 	}
 
+	BroadcastEvent("EVENT_UPDATED", gin.H{"id": id, "action": "delete"})
 	c.JSON(http.StatusOK, gin.H{"message": "Jadwal berhasil dihapus"})
 }
 
@@ -630,6 +711,7 @@ func RequestTopUp(c *gin.Context) {
 		return
 	}
 
+	BroadcastEvent("TOPUP_UPDATED", gin.H{"user_id": userIdStr, "amount": amount})
 	c.JSON(http.StatusOK, gin.H{"message": "Permintaan deposit berhasil dikirim"})
 }
 
@@ -688,6 +770,7 @@ func ApproveTopUp(c *gin.Context) {
 			return
 		}
 
+		BroadcastEvent("TOPUP_UPDATED", gin.H{"topup_id": input.TopUpID, "action": "APPROVE"})
 		c.JSON(http.StatusOK, gin.H{"message": "Top up berhasil disetujui dan saldo ditambahkan"})
 		return
 	}
@@ -700,6 +783,7 @@ func ApproveTopUp(c *gin.Context) {
 			return
 		}
 
+		BroadcastEvent("TOPUP_UPDATED", gin.H{"topup_id": input.TopUpID, "action": "REJECT"})
 		c.JSON(http.StatusOK, gin.H{"message": "Permintaan top up ditolak"})
 		return
 	}
@@ -888,9 +972,9 @@ func PayDeposit(c *gin.Context) {
 		return
 	}
 
+	BroadcastEvent("PAYMENT_UPDATED", gin.H{"registration_id": input.RegistrationID, "user_id": input.UserID})
 	c.JSON(http.StatusOK, gin.H{"message": "Berhasil bayar pakai deposit! 🔥"})
 }
-
 
 // 1. Mengambil Profil Admin
 func GetAdminProfile(c *gin.Context) {
@@ -969,14 +1053,240 @@ func UpdateAdminPassword(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Password berhasil diperbarui"})
 }
+
+// --- REALTIME WEBSOCKET HUB ---
+
+type WSMessage struct {
+	Type    string      `json:"type"`    // Contoh: "REGISTRATION_UPDATED", "PAYMENT_UPDATED", "EVENT_UPDATED", "TOPUP_UPDATED"
+	Payload interface{} `json:"payload"` // Data detail objek
+}
+
+type WSHub struct {
+	clients    map[*websocket.Conn]bool
+	broadcast  chan WSMessage
+	register   chan *websocket.Conn
+	unregister chan *websocket.Conn
+	mutex      sync.RWMutex
+}
+
+var Hub = &WSHub{
+	clients:    make(map[*websocket.Conn]bool),
+	broadcast:  make(chan WSMessage, 100),
+	register:   make(chan *websocket.Conn),
+	unregister: make(chan *websocket.Conn),
+}
+
+func (h *WSHub) Run() {
+	for {
+		select {
+		case conn := <-h.register:
+			h.mutex.Lock()
+			h.clients[conn] = true
+			h.mutex.Unlock()
+			fmt.Println("🔌 Client WebSocket Terhubung. Total aktif:", len(h.clients))
+
+		case conn := <-h.unregister:
+			h.mutex.Lock()
+			if _, ok := h.clients[conn]; ok {
+				delete(h.clients, conn)
+				conn.Close()
+			}
+			h.mutex.Unlock()
+			fmt.Println("🔌 Client WebSocket Terputus. Total aktif:", len(h.clients))
+
+		case msg := <-h.broadcast:
+			h.mutex.RLock()
+			for conn := range h.clients {
+				err := conn.WriteJSON(msg)
+				if err != nil {
+					conn.Close()
+					delete(h.clients, conn)
+				}
+			}
+			h.mutex.RUnlock()
+		}
+	}
+}
+
+// Fungsi pembantu untuk mengirim notifikasi realtime ke seluruh client
+func BroadcastEvent(eventType string, payload interface{}) {
+	Hub.broadcast <- WSMessage{
+		Type:    eventType,
+		Payload: payload,
+	}
+}
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Izinkan semua origin terhubung ke WebSocket
+	},
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
+
+func HandleWebSocket(c *gin.Context) {
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Println("Gagal upgrade WebSocket:", err)
+		return
+	}
+
+	Hub.register <- conn
+
+	go func() {
+		defer func() {
+			Hub.unregister <- conn
+		}()
+		for {
+			_, _, err := conn.ReadMessage()
+			if err != nil {
+				break
+			}
+		}
+	}()
+}
+
+// --- MIDDLEWARE CORS ---
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.Request.Header.Get("Origin")
+		if origin != "" {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+		} else {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, ngrok-skip-browser-warning, *")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE, HEAD")
+		c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Content-Type")
+		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// --- HANDLER NOTIFIKASI & BROADCAST ---
+
+func BroadcastNotification(c *gin.Context) {
+	var input struct {
+		Title   string `json:"title"`
+		Message string `json:"message"`
+		Type    string `json:"type"`
+		Sender  string `json:"sender"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak valid"})
+		return
+	}
+
+	if input.Title == "" || input.Message == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Judul dan isi pesan wajib diisi"})
+		return
+	}
+
+	if input.Type == "" {
+		input.Type = "INFO"
+	}
+	if input.Sender == "" {
+		input.Sender = "Admin JMT Sport"
+	}
+
+	notif := Notification{
+		ID:        primitive.NewObjectID(),
+		Title:     input.Title,
+		Message:   input.Message,
+		Type:      input.Type,
+		Sender:    input.Sender,
+		CreatedAt: time.Now(),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := DB.Collection("notifications").InsertOne(ctx, notif)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan data notifikasi"})
+		return
+	}
+
+	// Broadcast seketika ke seluruh pemain via WebSocket
+	BroadcastEvent("BROADCAST_NOTIFICATION", notif)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Notifikasi berhasil disiarkan ke seluruh aplikasi!",
+		"data":    notif,
+	})
+}
+
+func GetNotifications(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}}).SetLimit(50)
+	cursor, err := DB.Collection("notifications").Find(ctx, bson.M{}, opts)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil daftar notifikasi"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var list []Notification
+	if err := cursor.All(ctx, &list); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memproses data notifikasi"})
+		return
+	}
+
+	if list == nil {
+		list = []Notification{}
+	}
+
+	c.JSON(http.StatusOK, list)
+}
+
+func DeleteNotification(c *gin.Context) {
+	idParam := c.Param("id")
+	objID, err := primitive.ObjectIDFromHex(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID notifikasi tidak valid"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = DB.Collection("notifications").DeleteOne(ctx, bson.M{"_id": objID})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus notifikasi"})
+		return
+	}
+
+	BroadcastEvent("NOTIFICATION_DELETED", gin.H{"id": idParam})
+	c.JSON(http.StatusOK, gin.H{"message": "Notifikasi berhasil dihapus"})
+}
+
 // --- MAIN FUNGSI ---
 
 func main() {
 	ConnectDB()
 	os.MkdirAll("uploads", os.ModePerm)
 
+	// Jalankan Realtime WebSocket Hub di background goroutine
+	go Hub.Run()
+
 	r := gin.Default()
-	r.Use(cors.Default())
+
+	// Pasang Middleware CORS
+	r.Use(CORSMiddleware())
+
+	// Endpoint Realtime WebSocket
+	r.GET("/ws", HandleWebSocket)
+
 	r.Static("/uploads", "./uploads")
 
 	r.POST("/request-topup", RequestTopUp)
@@ -998,13 +1308,14 @@ func main() {
 
 	r.GET("/user", GetUser)
 	r.PUT("/update-profile", UpdateProfile)
+	r.POST("/update-profile", UpdateProfile)
 
 	r.GET("/my-registrations", GetMyRegistrations) // Tambahkan baris ini
 
 	r.GET("/financial-summary", GetFinancialSummary)
 	r.GET("/dashboard-stats", GetDashboardStats)
 
-	r.PUT("/events/:id", UpdateEvent)   // Endpoint Edit
+	r.PUT("/events/:id", UpdateEvent)    // Endpoint Edit
 	r.DELETE("/events/:id", DeleteEvent) // Endpoint Hapus
 	r.POST("/register-user", RegisterUser)
 	r.POST("/login", LoginUser)
@@ -1012,6 +1323,63 @@ func main() {
 	r.GET("/admin-profile", GetAdminProfile)
 	r.PUT("/admin-profile", UpdateAdminProfile)
 	r.PUT("/admin-password", UpdateAdminPassword)
+
+	// Endpoint Notifikasi & Broadcast
+	r.POST("/broadcast-notification", BroadcastNotification)
+	r.GET("/notifications", GetNotifications)
+	r.DELETE("/notifications/:id", DeleteNotification)
+
+	// Frontend SPA & Nuxt Proxy Handler (Mencegah 404 pada route /player, /admin, dll)
+	r.NoRoute(func(c *gin.Context) {
+		reqPath := c.Request.URL.Path
+
+		// Jangan handle rute WebSocket
+		if reqPath == "/ws" {
+			c.Status(http.StatusNotFound)
+			return
+		}
+
+		publicDir := filepath.Join("fun-football-admin", ".output", "public")
+
+		// 1. Jika ada file statis langsung di folder .output/public (misal: logo-jmt.png, manifest.webmanifest, _nuxt/*)
+		targetFile := filepath.Join(publicDir, filepath.Clean(reqPath))
+		if stat, err := os.Stat(targetFile); err == nil && !stat.IsDir() {
+			c.File(targetFile)
+			return
+		}
+
+		// 2. Cek apakah ada file HTML spesifik hasil prerender (misal: player.html atau player/index.html)
+		htmlFile := filepath.Join(publicDir, filepath.Clean(reqPath)+".html")
+		if stat, err := os.Stat(htmlFile); err == nil && !stat.IsDir() {
+			c.File(htmlFile)
+			return
+		}
+		indexHtmlFile := filepath.Join(publicDir, filepath.Clean(reqPath), "index.html")
+		if stat, err := os.Stat(indexHtmlFile); err == nil && !stat.IsDir() {
+			c.File(indexHtmlFile)
+			return
+		}
+
+		// 3. Proxy ke Nuxt Dev Server (localhost:3000) jika sedang aktif
+		targetURL, _ := url.Parse("http://localhost:3000")
+		proxy := httputil.NewSingleHostReverseProxy(targetURL)
+		proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
+			// Jika Nuxt Dev server tidak aktif, fallback ke index.html / 200.html bawaan SPA
+			spa200 := filepath.Join(publicDir, "200.html")
+			if _, err200 := os.Stat(spa200); err200 == nil {
+				http.ServeFile(w, req, spa200)
+				return
+			}
+			spaIndex := filepath.Join(publicDir, "index.html")
+			if _, errIndex := os.Stat(spaIndex); errIndex == nil {
+				http.ServeFile(w, req, spaIndex)
+				return
+			}
+			http.Error(w, "Halaman tidak ditemukan", http.StatusNotFound)
+		}
+
+		proxy.ServeHTTP(c.Writer, c.Request)
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {

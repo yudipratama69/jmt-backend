@@ -380,7 +380,16 @@ func GetRegistrations(c *gin.Context) {
 	var registrations []Registration
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cursor, err := DB.Collection("registrations").Find(ctx, bson.M{})
+
+	filter := bson.M{}
+	eventIDStr := c.Query("event_id")
+	if eventIDStr != "" {
+		if objID, err := primitive.ObjectIDFromHex(eventIDStr); err == nil {
+			filter["event_id"] = objID
+		}
+	}
+
+	cursor, err := DB.Collection("registrations").Find(ctx, filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data"})
 		return
@@ -797,16 +806,16 @@ func GetPendingTopUps(c *gin.Context) {
 
 	// Menggabungkan (join) koleksi topups dengan users untuk mendapatkan nama pemain
 	pipeline := mongo.Pipeline{
-		{{"$match", bson.M{"status": "PENDING"}}},
-		{{"$lookup", bson.M{
+		{{Key: "$match", Value: bson.M{"status": "PENDING"}}},
+		{{Key: "$lookup", Value: bson.M{
 			"from":         "users",
 			"localField":   "user_id",
 			"foreignField": "_id",
 			"as":           "user_info",
 		}}},
-		{{"$unwind", bson.M{"path": "$user_info", "preserveNullAndEmptyArrays": true}}},
-		{{"$sort", bson.M{"created_at": -1}}}, // Urutkan dari yang terbaru
-		{{"$project", bson.M{
+		{{Key: "$unwind", Value: bson.M{"path": "$user_info", "preserveNullAndEmptyArrays": true}}},
+		{{Key: "$sort", Value: bson.M{"created_at": -1}}}, // Urutkan dari yang terbaru
+		{{Key: "$project", Value: bson.M{
 			"_id":        1,
 			"amount":     1,
 			"receipt":    1,
@@ -843,16 +852,16 @@ func GetApprovedTopUps(c *gin.Context) {
 
 	// Ambil data top up yang sudah APPROVED dan gabungkan dengan nama user
 	pipeline := mongo.Pipeline{
-		{{"$match", bson.M{"status": "APPROVED"}}},
-		{{"$lookup", bson.M{
+		{{Key: "$match", Value: bson.M{"status": "APPROVED"}}},
+		{{Key: "$lookup", Value: bson.M{
 			"from":         "users",
 			"localField":   "user_id",
 			"foreignField": "_id",
 			"as":           "user_info",
 		}}},
-		{{"$unwind", bson.M{"path": "$user_info", "preserveNullAndEmptyArrays": true}}},
-		{{"$sort", bson.M{"created_at": -1}}},
-		{{"$project", bson.M{
+		{{Key: "$unwind", Value: bson.M{"path": "$user_info", "preserveNullAndEmptyArrays": true}}},
+		{{Key: "$sort", Value: bson.M{"created_at": -1}}},
+		{{Key: "$project", Value: bson.M{
 			"_id":        1,
 			"amount":     1,
 			"status":     1,

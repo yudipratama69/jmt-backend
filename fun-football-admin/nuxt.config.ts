@@ -11,7 +11,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'https://plasma-life-caretaker.ngrok-free.dev'
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'https://jmt-sport.jasamedikatransmedic.com'
     }
   },
 

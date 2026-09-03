@@ -546,6 +546,42 @@ func AdjustUserDeposit(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Saldo deposit member berhasil disesuaikan"})
 }
 
+func DeleteUser(c *gin.Context) {
+	id := c.Param("id")
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID member tidak valid"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 1. Ambil data user untuk cek foto profil (jika ada)
+	var user User
+	_ = DB.Collection("users").FindOne(ctx, bson.M{"_id": objID}).Decode(&user)
+	if user.ProfilePic != "" {
+		filePath := strings.TrimPrefix(user.ProfilePic, "/")
+		_ = os.Remove(filePath)
+	}
+
+	// 2. Hapus user dari koleksi users
+	result, err := DB.Collection("users").DeleteOne(ctx, bson.M{"_id": objID})
+	if err != nil || result.DeletedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Member tidak ditemukan atau gagal dihapus"})
+		return
+	}
+
+	// 3. Hapus seluruh pendaftaran/registrasi terkait member ini
+	_, _ = DB.Collection("registrations").DeleteMany(ctx, bson.M{"user_id": objID})
+
+	// 4. Broadcast event realtime
+	BroadcastEvent("USER_UPDATED", gin.H{"deleted_user_id": id})
+	BroadcastEvent("REGISTRATION_UPDATED", gin.H{"deleted_user_id": id})
+
+	c.JSON(http.StatusOK, gin.H{"message": "Member beserta riwayat pendaftarannya berhasil dihapus"})
+}
+
 func UpdateProfile(c *gin.Context) {
 	_ = c.Request.ParseMultipartForm(32 << 20)
 	userID := c.PostForm("user_id")
@@ -1380,6 +1416,7 @@ func main() {
 
 	r.GET("/user", GetUser)
 	r.GET("/users", GetAllUsers)
+	r.DELETE("/users/:id", DeleteUser)
 	r.POST("/admin/adjust-deposit", AdjustUserDeposit)
 	r.PUT("/update-profile", UpdateProfile)
 	r.POST("/update-profile", UpdateProfile)

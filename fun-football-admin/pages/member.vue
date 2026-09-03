@@ -246,17 +246,24 @@
 
                 <!-- Aksi Pengurus -->
                 <td class="p-4 text-center whitespace-nowrap">
-                  <div class="flex items-center justify-center gap-2">
+                  <div class="flex items-center justify-center gap-1.5">
                     <button 
                       @click="bukaModalSesuaikanDeposit(user)" 
-                      class="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white rounded-xl text-xs font-bold shadow-sm transition active:scale-95 flex items-center gap-1">
+                      class="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white rounded-xl text-xs font-bold shadow-sm transition active:scale-95 flex items-center gap-1">
                       <Icon name="ph:wallet-bold" />
                       <span>Atur Saldo</span>
                     </button>
                     <button 
                       @click="bukaModalDetailMember(user)" 
-                      class="px-3 py-1.5 theme-bg-card border theme-border hover:border-orange-500 theme-text-main rounded-xl text-xs font-bold transition">
+                      class="px-2.5 py-1.5 theme-bg-card border theme-border hover:border-orange-500 theme-text-main rounded-xl text-xs font-bold transition">
                       Riwayat
+                    </button>
+                    <button 
+                      @click="hapusMember(user)" 
+                      class="px-2.5 py-1.5 theme-bg-card border theme-border hover:border-red-500 hover:bg-red-500/10 text-red-500 rounded-xl text-xs font-bold transition active:scale-95 flex items-center gap-1"
+                      title="Hapus Member">
+                      <Icon name="ph:trash-bold" />
+                      <span>Hapus</span>
                     </button>
                   </div>
                 </td>
@@ -886,6 +893,31 @@ const simpanPenyesuaianDeposit = async () => {
   } catch (error) {
     toast.error(error.response?._data?.error || 'Gagal menyesuaikan saldo deposit', 'Error')
   }
+}
+
+// Hapus Member
+const hapusMember = (user) => {
+  if (!user || !user.id) return
+
+  toast.confirm({
+    title: 'Hapus Member Komunitas',
+    message: `Apakah Anda yakin ingin menghapus akun member "${user.name}"? Seluruh data profil dan riwayat pendaftaran pemain ini akan dihapus permanen.`,
+    confirmText: 'Ya, Hapus Member',
+    cancelText: 'Batal',
+    type: 'danger',
+    onConfirm: async () => {
+      try {
+        await $api(`/users/${user.id}`, {
+          method: 'DELETE'
+        })
+        toast.success(`Member "${user.name}" berhasil dihapus!`, 'Sukses')
+        refreshUsers()
+        refreshReg()
+      } catch (error) {
+        toast.error(error.response?._data?.error || 'Gagal menghapus member', 'Error')
+      }
+    }
+  })
 }
 
 // Salin Format WA Squad

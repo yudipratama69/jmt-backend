@@ -79,6 +79,7 @@ export default defineNuxtConfig({
         '/verifikasi',
         '/verifikasi-deposit',
         '/admin-keuangan',
+        '/member',
         '/profil-admin',
         '/master-notifikasi'
       ]

@@ -37,7 +37,12 @@
           </div>
 
           <div>
-            <label class="block text-xs font-black uppercase tracking-wider theme-text-muted mb-1.5">Password</label>
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="block text-xs font-black uppercase tracking-wider theme-text-muted">Password</label>
+              <NuxtLink to="/player/forgot-password" class="text-xs text-orange-500 hover:underline font-bold">
+                Lupa Password?
+              </NuxtLink>
+            </div>
             <input 
               v-model="form.password" 
               type="password" 

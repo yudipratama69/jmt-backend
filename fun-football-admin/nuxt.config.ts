@@ -69,6 +69,7 @@ export default defineNuxtConfig({
         '/player',
         '/player/login',
         '/player/register',
+        '/player/forgot-password',
         '/player/jadwalku',
         '/player/keuangan',
         '/player/pemain',

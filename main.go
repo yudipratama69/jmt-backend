@@ -182,6 +182,67 @@ func LoginUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Login berhasil", "data": user})
 }
 
+type ResetPasswordInput struct {
+	Email           string `json:"email"`
+	NewPassword     string `json:"new_password"`
+	ConfirmPassword string `json:"confirm_password"`
+}
+
+func ResetPlayerPassword(c *gin.Context) {
+	var input ResetPasswordInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data input tidak valid"})
+		return
+	}
+
+	input.Email = strings.TrimSpace(strings.ToLower(input.Email))
+	if input.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email wajib diisi"})
+		return
+	}
+
+	if len(input.NewPassword) < 6 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Password baru minimal 6 karakter"})
+		return
+	}
+
+	if input.ConfirmPassword != "" && input.NewPassword != input.ConfirmPassword {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Konfirmasi password baru tidak cocok"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 1. Cari user berdasarkan email
+	var user User
+	err := DB.Collection("users").FindOne(ctx, bson.M{"email": input.Email}).Decode(&user)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Email tidak terdaftar sebagai pemain"})
+		return
+	}
+
+	// 2. Hash password baru
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengenkripsi password baru"})
+		return
+	}
+
+	// 3. Update password di database
+	_, err = DB.Collection("users").UpdateOne(ctx, bson.M{"_id": user.ID}, bson.M{"$set": bson.M{"password": string(hashedPassword)}})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui password"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Password berhasil diperbarui! Silakan masuk dengan password baru Anda.",
+		"user_id": user.ID.Hex(),
+		"name":    user.Name,
+	})
+}
+
 // --- HANDLER API LAINNYA ---
 
 func CreateEvent(c *gin.Context) {
@@ -1404,6 +1465,8 @@ func main() {
 	// Endpoint Auth (Baru)
 	r.POST("/auth/register", RegisterUser)
 	r.POST("/auth/login", LoginUser)
+	r.POST("/auth/reset-password", ResetPlayerPassword)
+	r.POST("/reset-password", ResetPlayerPassword)
 
 	// Endpoint Events & Registrations
 	r.POST("/events", CreateEvent)

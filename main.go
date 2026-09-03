@@ -483,6 +483,69 @@ func GetUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": user})
 }
 
+func GetAllUsers(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	opts := options.Find().SetSort(bson.D{{Key: "name", Value: 1}})
+	cursor, err := DB.Collection("users").Find(ctx, bson.M{}, opts)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data member"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var users []User
+	if err := cursor.All(ctx, &users); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memproses data member"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": users})
+}
+
+type AdjustDepositInput struct {
+	UserID string `json:"user_id"`
+	Amount int    `json:"amount"`
+	Action string `json:"action"` // "ADD", "SET", "DEDUCT"
+}
+
+func AdjustUserDeposit(c *gin.Context) {
+	var input AdjustDepositInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data salah"})
+		return
+	}
+
+	objID, err := primitive.ObjectIDFromHex(input.UserID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID tidak valid"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var update bson.M
+	if input.Action == "SET" {
+		update = bson.M{"$set": bson.M{"deposit": input.Amount}}
+	} else if input.Action == "DEDUCT" {
+		update = bson.M{"$inc": bson.M{"deposit": -input.Amount}}
+	} else { // "ADD"
+		update = bson.M{"$inc": bson.M{"deposit": input.Amount}}
+	}
+
+	_, err = DB.Collection("users").UpdateOne(ctx, bson.M{"_id": objID}, update)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui saldo member"})
+		return
+	}
+
+	BroadcastEvent("USER_UPDATED", gin.H{"user_id": input.UserID})
+	BroadcastEvent("TOPUP_UPDATED", gin.H{"user_id": input.UserID})
+	c.JSON(http.StatusOK, gin.H{"message": "Saldo deposit member berhasil disesuaikan"})
+}
+
 func UpdateProfile(c *gin.Context) {
 	_ = c.Request.ParseMultipartForm(32 << 20)
 	userID := c.PostForm("user_id")
@@ -1316,6 +1379,8 @@ func main() {
 	r.POST("/pay-deposit", PayDeposit)
 
 	r.GET("/user", GetUser)
+	r.GET("/users", GetAllUsers)
+	r.POST("/admin/adjust-deposit", AdjustUserDeposit)
 	r.PUT("/update-profile", UpdateProfile)
 	r.POST("/update-profile", UpdateProfile)
 

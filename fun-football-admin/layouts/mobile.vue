@@ -43,12 +43,6 @@
               <Icon :name="isDark ? 'ph:sun-bold' : 'ph:moon-bold'" class="text-sm" />
             </button>
 
-            <!-- Saldo Chip Cepat -->
-            <NuxtLink to="/player/keuangan" class="bg-black/25 hover:bg-black/35 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/20 flex items-center gap-1 text-xs text-amber-200 active:scale-95 transition">
-              <Icon name="ph:wallet-bold" class="text-xs text-amber-300" />
-              <span class="font-extrabold text-[11px] text-white">Rp {{ (userDeposit || 0).toLocaleString('id-ID') }}</span>
-            </NuxtLink>
-
             <!-- Tombol Avatar Profile / Menu dengan Stacking Context yang Benar -->
             <div class="relative">
               <button 

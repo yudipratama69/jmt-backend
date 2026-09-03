@@ -1,8 +1,25 @@
-export function useApiFetch<T = any>(url: string | (() => string), options: any = {}) {
+export function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname
+    const port = window.location.port
+    const proto = window.location.protocol
+
+    // Jika diakses via Nuxt Dev Server di port 3000, arahkan ke backend Go di port 8080 pada host yang sama
+    if (port === '3000') {
+      return `${proto}//${host}:8080`
+    }
+    // Jika diakses via Docker / Ngrok / Reverse Proxy langsung
+    return `${proto}//${window.location.host}`
+  }
   const config = useRuntimeConfig()
+  return config.public.apiBase || 'http://localhost:8080'
+}
+
+export function useApiFetch<T = any>(url: string | (() => string), options: any = {}) {
+  const baseURL = getApiBaseUrl()
 
   return useFetch<T>(url, {
-    baseURL: config.public.apiBase,
+    baseURL,
     onRequest({ options: reqOptions }) {
       const headers = new Headers(reqOptions.headers || {})
       headers.set('ngrok-skip-browser-warning', 'true')
@@ -15,8 +32,7 @@ export function useApiFetch<T = any>(url: string | (() => string), options: any 
 
 export function useApiUrl(path?: string | null): string {
   if (!path) return ''
-  const config = useRuntimeConfig()
-  const base = (config.public.apiBase || '').replace(/\/+$/, '')
+  const base = getApiBaseUrl().replace(/\/+$/, '')
 
   // Jika sudah merupakan URL lengkap
   if (path.startsWith('http://') || path.startsWith('https://')) {

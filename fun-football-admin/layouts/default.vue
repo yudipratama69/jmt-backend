@@ -37,15 +37,15 @@
           <Icon name="ph:calendar-plus-bold" class="text-xl" />
           Jadwal Main
         </NuxtLink>
-        <NuxtLink to="/verifikasi" @click="isSidebarOpen = false" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:bg-white/10 transition" exactActiveClass="bg-gradient-to-r from-red-600 to-orange-600 text-white font-bold shadow-md">
-          <Icon name="ph:receipt-bold" class="text-xl" />
-          Verifikasi Bayar
+        <!-- Menu Daftar Member & Squad -->
+        <NuxtLink to="/member" @click="isSidebarOpen = false" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:bg-white/10 transition" exactActiveClass="bg-gradient-to-r from-red-600 to-orange-600 text-white font-bold shadow-md">
+          <Icon name="ph:users-three-bold" class="text-xl" />
+          Daftar Member & Squad
         </NuxtLink>
-
-        <!-- Menu Verifikasi Deposit -->
-        <NuxtLink to="/verifikasi-deposit" @click="isSidebarOpen = false" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:text-white transition-colors" exact-active-class="bg-gradient-to-r from-red-600 to-orange-600 text-white font-bold shadow-lg">
-          <Icon name="ph:wallet-bold" class="text-xl" />
-          Verifikasi Deposit
+        <!-- Menu Pusat Verifikasi (Gabungan Tiket & Deposit) -->
+        <NuxtLink to="/verifikasi" @click="isSidebarOpen = false" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:bg-white/10 transition" exactActiveClass="bg-gradient-to-r from-red-600 to-orange-600 text-white font-bold shadow-md">
+          <Icon name="ph:shield-check-bold" class="text-xl" />
+          Pusat Verifikasi
         </NuxtLink>
 
         <!-- Garis Pemisah -->
